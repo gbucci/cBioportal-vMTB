@@ -231,3 +231,318 @@ This dataset represents a clinically relevant melanoma case demonstrating:
 - Always validate study before loading using `validateData.py`
 - Container restart required after loading for changes to appear in web UI
 - Validation reports saved to `/tmp/validation_report.html` for debugging
+
+## Local Development Environment
+
+### Local cBioPortal Setup
+
+For local development/testing (e.g., 172.21.91.6:8080, cBioPortal 4.1.13):
+
+**Container Architecture:**
+- `cbioportal-container`: Web application (port 8080)
+- `cbioportal-database-container`: MySQL 5.7 (port 3306)
+
+**Database Credentials (Local):**
+- Database: `cbioportal`
+- User: `cbio_user`
+- Password: `somepassword` (check with `sudo docker exec cbioportal-database-container env | grep MYSQL`)
+
+### Loading Studies on Local Environment
+
+```bash
+# 1. Clone repository
+git clone https://github.com/gbucci/cBioportal-vMTB.git
+cd cBioportal-vMTB
+
+# 2. Extract study
+tar -xzf melanoma_study.tar.gz
+
+# 3. Copy to home directory (script expects it there)
+cp -r melanoma_study ~/
+
+# 4. Load using local script
+cd melanoma_study
+./load_study_on_local.sh
+```
+
+**Important:** The script uses `$HOME/melanoma_study` by default. Always ensure you copy the latest version there before loading.
+
+### Manual Local Loading (with correct credentials)
+
+```bash
+# Find database credentials
+sudo docker exec cbioportal-database-container env | grep MYSQL
+
+# Copy study to container
+sudo docker cp ~/melanoma_study cbioportal-container:/data/
+
+# Validate (standalone)
+sudo docker exec cbioportal-container bash -c "
+    cd /cbioportal/core/src/main/scripts/importer && \
+    python3 validateData.py -s /data/melanoma_study -html /data/validation_report.html
+"
+
+# Import with portal URL and override warnings
+sudo docker exec cbioportal-container bash -c "
+    cd /cbioportal/core/src/main/scripts/importer && \
+    ./metaImport.py -s /data/melanoma_study -u http://YOUR_IP:8080 -o
+"
+
+# Restart and verify
+sudo docker restart cbioportal-container
+sleep 120
+```
+
+### Verify Study in Database
+
+```bash
+# List all studies (use correct credentials)
+sudo docker exec cbioportal-database-container mysql -u cbio_user -psomepassword cbioportal -e \
+    'SELECT CANCER_STUDY_IDENTIFIER, NAME FROM cancer_study;'
+
+# Count mutations for specific study
+sudo docker exec cbioportal-database-container mysql -u cbio_user -psomepassword cbioportal -e \
+    "SELECT COUNT(*) as mutation_count FROM mutation WHERE GENETIC_PROFILE_ID IN
+    (SELECT GENETIC_PROFILE_ID FROM genetic_profile WHERE CANCER_STUDY_ID =
+    (SELECT CANCER_STUDY_ID FROM cancer_study WHERE CANCER_STUDY_IDENTIFIER='melanoma_colo829_test'));"
+```
+
+## Common Pitfalls and Solutions
+
+### 1. Duplicate Case List Error
+
+**Error:**
+```
+ERROR: Multiple case lists with this stable_id defined in the study
+```
+
+**Cause:** `add_global_case_list: true` in `meta_study.txt` creates automatic case lists that conflict with manual ones.
+
+**Solution:** Remove `add_global_case_list: true` from `meta_study.txt` and use only manual case lists in `case_lists/` directory.
+
+### 2. Case Lists Not in Subdirectory
+
+**Error:** Case list files in root directory instead of `case_lists/`
+
+**Solution:** Ensure proper structure:
+```
+study_name/
+├── case_lists/
+│   ├── study_id_all.txt
+│   └── study_id_sequenced.txt
+└── (other files)
+```
+
+### 3. Wrong Study Directory Loaded
+
+**Issue:** Script loads old cached version from `$HOME/melanoma_study` instead of updated git version.
+
+**Solution:**
+```bash
+# Remove old version
+rm -rf $HOME/melanoma_study
+
+# Copy fresh version
+cp -r ~/cBioportal-vMTB/melanoma_study $HOME/
+
+# Or specify directory explicitly
+STUDY_DIR="/path/to/correct/study" ./load_study_on_local.sh
+```
+
+### 4. metaImport Connection Refused
+
+**Error:**
+```
+ConnectionRefusedError: [Errno 111] Connection refused
+```
+
+**Cause:** metaImport.py trying to connect to cBioPortal API at wrong URL.
+
+**Solution:** Always specify portal URL with `-u` flag:
+```bash
+./metaImport.py -s /data/study_name -u http://YOUR_IP:PORT -o
+```
+
+### 5. Validation Warnings Block Import
+
+**Issue:** Import stops due to non-critical warnings (OS_MONTHS, SWISSPROT format, etc.)
+
+**Solution:** Use `-o` (override) flag to proceed:
+```bash
+./metaImport.py -s /data/study_name -u http://YOUR_IP:PORT -o
+```
+
+### 6. Study Not Visible in Web UI
+
+**Cause:** Container needs restart to refresh cache.
+
+**Solution:**
+```bash
+sudo docker restart cbioportal-container
+sleep 120  # Wait for startup
+```
+
+## Creating New Studies - Best Practices
+
+### Pre-Flight Checklist
+
+Before creating a new study, ensure you have:
+
+- [ ] Study ID (lowercase, no spaces, e.g., `lung_study_2024`)
+- [ ] Cancer type defined (or use existing from cancer_type.txt)
+- [ ] Patient/Sample IDs consistent across all files
+- [ ] MAF file with required columns (Hugo_Symbol, Chromosome, etc.)
+- [ ] Clinical data with 4-line headers
+- [ ] Reference genome specified (hg19/hg38)
+
+### Required File Structure
+
+```
+study_name/
+├── meta_study.txt                      # NO add_global_case_list!
+├── meta_cancer_type.txt
+├── cancer_type.txt                     # If new cancer type
+├── meta_clinical_patient.txt
+├── data_clinical_patient.txt
+├── meta_clinical_sample.txt
+├── data_clinical_sample.txt
+├── meta_mutations_extended.txt
+├── data_mutations_extended.maf
+├── case_lists/
+│   ├── {study_id}_all.txt
+│   └── {study_id}_sequenced.txt
+└── README.md
+```
+
+### meta_study.txt Template
+
+```
+type_of_cancer: [cancer_type_id]
+cancer_study_identifier: [study_id]
+name: [Study Display Name]
+description: [Study description]
+citation: [Reference or data source]
+pmid: [PubMed ID if applicable]
+reference_genome: hg38
+```
+
+**CRITICAL:** Do NOT include `add_global_case_list: true` - it causes duplicate case list errors.
+
+### Case List Templates
+
+**{study_id}_all.txt:**
+```
+cancer_study_identifier: [study_id]
+stable_id: [study_id]_all
+case_list_name: All samples
+case_list_description: All samples ([N] samples)
+case_list_ids: SAMPLE1	SAMPLE2	SAMPLE3
+```
+
+**{study_id}_sequenced.txt:**
+```
+cancer_study_identifier: [study_id]
+stable_id: [study_id]_sequenced
+case_list_name: Samples with mutation data
+case_list_description: Samples with mutation data ([N] samples)
+case_list_category: all_cases_with_mutation_data
+case_list_ids: SAMPLE1	SAMPLE2
+```
+
+### Validation Workflow
+
+```bash
+# 1. Validate locally before loading
+sudo docker exec cbioportal-container bash -c "
+    cd /cbioportal/core/src/main/scripts/importer && \
+    python3 validateData.py -s /data/study_name -html /data/validation_report.html
+"
+
+# 2. Check validation report
+sudo docker cp cbioportal-container:/data/validation_report.html /tmp/
+# Open in browser to see detailed errors
+
+# 3. Fix errors, then re-validate
+
+# 4. Load only when validation passes
+sudo docker exec cbioportal-container bash -c "
+    cd /cbioportal/core/src/main/scripts/importer && \
+    ./metaImport.py -s /data/study_name -u http://IP:PORT -o
+"
+```
+
+### Expected Warnings (Non-Critical)
+
+These warnings are normal and can be overridden with `-o`:
+
+- `OS_MONTHS and/or OS_STATUS not found` - Overall survival data optional
+- `DFS_MONTHS and/or DFS_STATUS not found` - Disease-free survival optional
+- `SWISSPROT value is not a (single) UniProtKB/Swiss-Prot name` - Will auto-resolve
+- Mutations filtered (Silent, Intron, 5'Flank, etc.) - Expected behavior
+
+### Post-Load Verification
+
+```bash
+# 1. Check study in database
+sudo docker exec cbioportal-database-container mysql -u cbio_user -p[PASSWORD] cbioportal -e \
+    "SELECT CANCER_STUDY_IDENTIFIER, NAME, STATUS FROM cancer_study WHERE CANCER_STUDY_IDENTIFIER='[study_id]';"
+
+# 2. Count loaded data
+sudo docker exec cbioportal-database-container mysql -u cbio_user -p[PASSWORD] cbioportal -e \
+    "SELECT
+        (SELECT COUNT(*) FROM patient WHERE CANCER_STUDY_ID=(SELECT CANCER_STUDY_ID FROM cancer_study WHERE CANCER_STUDY_IDENTIFIER='[study_id]')) as patients,
+        (SELECT COUNT(*) FROM sample WHERE PATIENT_ID IN (SELECT PATIENT_ID FROM patient WHERE CANCER_STUDY_ID=(SELECT CANCER_STUDY_ID FROM cancer_study WHERE CANCER_STUDY_IDENTIFIER='[study_id]'))) as samples,
+        (SELECT COUNT(*) FROM mutation WHERE GENETIC_PROFILE_ID IN (SELECT GENETIC_PROFILE_ID FROM genetic_profile WHERE CANCER_STUDY_ID=(SELECT CANCER_STUDY_ID FROM cancer_study WHERE CANCER_STUDY_IDENTIFIER='[study_id]'))) as mutations;"
+
+# 3. Restart container
+sudo docker restart cbioportal-container
+
+# 4. Verify in web UI
+# Navigate to http://IP:PORT and search for study name
+```
+
+### Study Removal (for reloading)
+
+```bash
+# Remove study from database
+sudo docker exec cbioportal-container bash -c "
+    cd /cbioportal/core/src/main/scripts/importer && \
+    ./cbioportalImporter.py -c remove-study -id [study_id]
+"
+
+# Then reload with corrected files
+```
+
+## Quick Reference
+
+### Environment-Specific Details
+
+| Aspect | Production (INFN) | Local Dev |
+|--------|------------------|-----------|
+| cBioPortal Version | 6.2.0 | 4.1.13 |
+| MySQL Version | 8.0 | 5.7 |
+| Web Port | 9090 | 8080 |
+| Host | 131.154.26.79 | 172.21.91.6 |
+| DB Password | P@ssword1 | somepassword |
+| Access | Via bastion | Direct |
+
+### Most Common Commands
+
+```bash
+# Validate study
+sudo docker exec cbioportal-container bash -c "
+    cd /cbioportal/core/src/main/scripts/importer && \
+    python3 validateData.py -s /data/STUDY_NAME -html /data/validation_report.html"
+
+# Load study (local)
+sudo docker exec cbioportal-container bash -c "
+    cd /cbioportal/core/src/main/scripts/importer && \
+    ./metaImport.py -s /data/STUDY_NAME -u http://IP:PORT -o"
+
+# List studies
+sudo docker exec cbioportal-database-container mysql -u cbio_user -pPASSWORD cbioportal -e \
+    'SELECT CANCER_STUDY_IDENTIFIER, NAME FROM cancer_study;'
+
+# Restart
+sudo docker restart cbioportal-container
+```
