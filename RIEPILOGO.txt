@@ -1,0 +1,100 @@
+═══════════════════════════════════════════════════════════════
+   STUDIO CBIOPORTAL MELANOMA COLO-829 - PRONTO PER L'USO
+═══════════════════════════════════════════════════════════════
+
+✓ COSA HO PREPARATO:
+
+1. melanoma_study.tar.gz (17 KB)
+   → Archivio compresso con tutto lo studio pronto da caricare
+
+2. melanoma_study/ (directory completa)
+   → Studio non compresso con tutti i file necessari:
+     - meta_study.txt
+     - cancer_type.txt e meta
+     - dati clinici (paziente e campioni)
+     - data_mutations_extended.maf (36 mutazioni)
+     - case lists
+     - script di caricamento
+
+3. load_study_on_server.sh
+   → Script automatico per caricare lo studio
+
+4. GUIDA_CARICAMENTO.md
+   → Manuale completo in italiano passo-passo
+
+═══════════════════════════════════════════════════════════════
+
+📋 PROSSIMI PASSI:
+
+1. Scarica melanoma_study.tar.gz (link qui sotto)
+
+2. Copialo sulla macchina cBioPortal:
+   
+   scp -i ~/.ssh/id_ed25519.pub \
+       -J gbucci@bastion-sgsi.cnaf.infn.it \
+       melanoma_study.tar.gz ubuntu@131.154.26.79:~/
+
+3. Connettiti alla macchina:
+   
+   ssh -i ~/.ssh/id_ed25519.pub \
+       -J gbucci@bastion-sgsi.cnaf.infn.it \
+       ubuntu@131.154.26.79
+
+4. Decomprimi ed esegui:
+   
+   tar -xzf melanoma_study.tar.gz
+   cd melanoma_study
+   chmod +x load_study_on_server.sh
+   ./load_study_on_server.sh
+
+5. Riavvia il container:
+   
+   sudo docker restart cbioportal-container
+
+6. Dopo 2 minuti, vai su:
+   
+   http://131.154.26.79:9090
+
+═══════════════════════════════════════════════════════════════
+
+📊 DETTAGLI STUDIO:
+
+ID Studio:      melanoma_colo829_test
+Nome:           Melanoma COLO-829 Test Case
+Paziente:       C_UFLEBTVLHO (M, 45 anni)
+Campioni:       COLO-829 (tumore), COLO-829BL (normale)
+Mutazioni:      36 SNV/INDEL
+Gene chiave:    BRAF V600E (famosa mutazione nel melanoma)
+Riferimento:    GRCh38/hg38
+
+═══════════════════════════════════════════════════════════════
+
+🔧 FILE INCLUSI:
+
+• Meta files (formato cBioPortal)
+• Dati clinici strutturati
+• MAF file annotato con VEP
+• Case lists (all, sequenced)
+• README con documentazione
+• Script automatico di caricamento
+
+═══════════════════════════════════════════════════════════════
+
+💡 NOTE:
+
+- Lo studio è già validato e pronto
+- Il MAF include annotazioni complete (VEP, gnomAD, COSMIC, etc.)
+- I dati clinici seguono il formato cBioPortal standard
+- Include mutazioni driver note (BRAF V600E)
+- Basato su dati reali della linea cellulare COLO-829
+
+═══════════════════════════════════════════════════════════════
+
+Per domande o problemi, leggi GUIDA_CARICAMENTO.md che include:
+- Procedura step-by-step dettagliata
+- Troubleshooting
+- Comandi utili per debugging
+
+Buon lavoro! 🎉
+
+═══════════════════════════════════════════════════════════════

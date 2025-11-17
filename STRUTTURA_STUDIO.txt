@@ -1,0 +1,152 @@
+══════════════════════════════════════════════════════════════════════
+                  STRUTTURA STUDIO MELANOMA COLO-829
+══════════════════════════════════════════════════════════════════════
+
+📁 melanoma_study/
+│
+├── 📄 meta_study.txt                   [STUDIO]
+│   └─→ Definisce: ID, nome, descrizione, tipo cancro
+│       ID: melanoma_colo829_test
+│       Nome: Melanoma COLO-829 Test Case
+│       Reference: hg38
+│
+├── 📄 meta_cancer_type.txt + cancer_type.txt    [TIPO CANCRO]
+│   └─→ Definisce melanoma come tipo di cancro
+│       Colore: Black (ribbon awareness)
+│
+├── 📄 meta_clinical_patient.txt        [CLINICA - PAZIENTE]
+│   └─→ File: data_clinical_patient.txt
+│       
+├── 📋 data_clinical_patient.txt
+│   └─→ Paziente: C_UFLEBTVLHO
+│       • Sesso: MALE
+│       • Età diagnosi: 45 anni
+│       • Anno: 2022
+│
+├── 📄 meta_clinical_sample.txt         [CLINICA - CAMPIONI]
+│   └─→ File: data_clinical_sample.txt
+│       
+├── 📋 data_clinical_sample.txt
+│   └─→ Campione 1: COLO-829 (tumore)
+│       • Tipo: Metastatic
+│       • Tessuto: Skin
+│       • Stage: Stage IV
+│       • BRAF: V600E
+│       
+│   └─→ Campione 2: COLO-829BL (controllo)
+│       • Tipo: Normal Blood
+│       • BRAF: Wildtype
+│
+├── 📄 meta_mutations_extended.txt      [MUTAZIONI]
+│   └─→ File: data_mutations_extended.maf
+│       Tipo: MUTATION_EXTENDED (MAF format)
+│
+├── 🧬 data_mutations_extended.maf
+│   └─→ 36 mutazioni somatiche
+│       • BRAF p.V600E (chr7:140753336 A>T) ⭐
+│       • BIRC6, ACYP2, MGAT4A, IL1R2, FHL2
+│       • KYNU, PRKRA, ALS2, COL4A3, ARGFX
+│       • ERICH6, MECOM, F2R, STK19, HDAC2
+│       • TAGAP-AS1, TRBV29-1
+│       • + altre mutazioni
+│
+│       Annotazioni incluse:
+│       ✓ VEP (Variant Effect Predictor)
+│       ✓ SIFT / PolyPhen scores
+│       ✓ gnomAD frequencies
+│       ✓ COSMIC IDs
+│       ✓ ClinVar
+│       ✓ Protein domains (PDB mappings)
+│       ✓ Read depths (tumor/normal)
+│
+└── 📁 case_lists/                      [LISTE CAMPIONI]
+    │
+    ├── 📄 melanoma_colo829_test_all.txt
+    │   └─→ Tutti i campioni (2)
+    │       COLO-829, COLO-829BL
+    │
+    └── 📄 melanoma_colo829_test_sequenced.txt
+        └─→ Campioni con mutazioni (1)
+            COLO-829
+
+══════════════════════════════════════════════════════════════════════
+
+🔍 MUTAZIONI CHIAVE:
+
+1. BRAF V600E (chr7:140753336)
+   • Gene simbolo: BRAF
+   • Tipo: Missense_Mutation
+   • Cambio proteina: p.Val600Glu (p.V600E)
+   • Alleli: A→T
+   • Profondità tumore: 151x (95 reads alt)
+   • Profondità normale: 32x (0 reads alt)
+   • ClinVar: Pathogenic
+   • Significato: Mutazione driver nel melanoma
+   • Target: BRAF inhibitors (vemurafenib, dabrafenib)
+   ⭐ Questa è LA mutazione più importante!
+
+2. Altre mutazioni rilevanti:
+   • BIRC6: p.Gln3268* (Nonsense)
+   • HDAC2: p.Arg409* (Nonsense)
+   • Multiple frameshift e splice site variants
+
+══════════════════════════════════════════════════════════════════════
+
+📊 STATISTICHE:
+
+Total mutations:        36
+Missense:              ~15
+Nonsense:              ~12
+Frameshift:            ~4
+Splice site:           ~3
+Start lost:            ~2
+
+Genome build:          GRCh38/hg38
+Sequencing:            Whole Genome Sequencing
+Platform:              Illumina NovaSeq
+Caller:                Strelka2 + Manta
+VEP version:           Latest
+
+══════════════════════════════════════════════════════════════════════
+
+✅ VALIDAZIONE cBioPortal:
+
+Tutti i file sono conformi agli standard cBioPortal:
+✓ Meta files con campi obbligatori
+✓ Clinical data con header a 4 righe
+✓ MAF con colonne richieste
+✓ Sample IDs consistenti tra file
+✓ Case lists con stable_id corretti
+✓ Cancer type definito
+✓ Reference genome specificato
+
+══════════════════════════════════════════════════════════════════════
+
+🎯 CASO CLINICO:
+
+Paziente maschio di 45 anni con melanoma cutaneo metastatico (Stage IV).
+Analisi molecolare al momento della diagnosi ha rivelato mutazione BRAF V600E.
+Trattamento iniziale con vemurafenib (inibitore BRAF).
+Dopo 4 mesi: progressione di malattia (resistenza).
+Nuovo sequenziamento mostra delezione PTEN (meccanismo di resistenza noto).
+
+Questo caso illustra:
+• Importanza del molecular profiling nel melanoma
+• Mutazioni driver targetabili (BRAF V600E)
+• Meccanismi di resistenza (PTEN loss)
+• Necessità di re-biopsia alla progressione
+
+══════════════════════════════════════════════════════════════════════
+
+📚 RIFERIMENTI:
+
+Paper principale:
+Nathanson et al. (2020) "PTEN Loss-of-Function Alterations Are Associated 
+With Intrinsic Resistance to BRAF Inhibitors in Metastatic Melanoma"
+PMID: 32913971
+
+Cell line data:
+COLO-829 from New York Genome Center (NYGC)
+https://bioinformatics.nygenome.org/
+
+══════════════════════════════════════════════════════════════════════

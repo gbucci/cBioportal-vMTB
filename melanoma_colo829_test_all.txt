@@ -1,0 +1,5 @@
+cancer_study_identifier: melanoma_colo829_test
+stable_id: melanoma_colo829_test_all
+case_list_name: All samples
+case_list_description: All samples (2 samples)
+case_list_ids: COLO-829	COLO-829BL
