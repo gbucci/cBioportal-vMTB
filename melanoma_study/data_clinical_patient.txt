@@ -1,0 +1,6 @@
+#Patient Identifier	Sex	Age at Diagnosis	Diagnosis Year
+#Patient identifier	Sex of patient	Age at diagnosis in years	Year of initial diagnosis
+#STRING	STRING	NUMBER	NUMBER
+#1	1	1	1
+PATIENT_ID	SEX	AGE	YEAR_DIAGNOSIS
+C_UFLEBTVLHO	MALE	45	2022

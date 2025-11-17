@@ -1,0 +1,7 @@
+#Patient Identifier	Sample Identifier	Sample Type	Tissue Site	Stage	BRAF Status
+#Patient identifier	Sample identifier	Sample type (tumor/normal)	Tissue site	Tumor stage	BRAF mutation status
+#STRING	STRING	STRING	STRING	STRING	STRING
+#1	1	1	1	1	1
+PATIENT_ID	SAMPLE_ID	SAMPLE_TYPE	TISSUE_SITE	TUMOR_STAGE	BRAF_STATUS
+C_UFLEBTVLHO	COLO-829	Metastatic	Skin	Stage IV	BRAF V600E
+C_UFLEBTVLHO	COLO-829BL	Normal Blood	Blood	NA	Wildtype

@@ -1,0 +1,6 @@
+cancer_study_identifier: melanoma_colo829_test
+stable_id: melanoma_colo829_test_sequenced
+case_list_name: Samples with mutation data
+case_list_description: Samples with mutation data (1 sample)
+case_list_category: all_cases_with_mutation_data
+case_list_ids: COLO-829
