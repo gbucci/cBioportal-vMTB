@@ -4,5 +4,4 @@ name: Melanoma COLO-829 Test Case
 description: Test study with melanoma case COLO-829 with BRAF V600E mutation and resistance to vemurafenib
 citation: COLO-829 cell line from NYGC
 pmid: 32913971
-add_global_case_list: true
 reference_genome: hg38
