@@ -97,72 +97,159 @@ sudo docker ps | grep cbioportal
 
 #### 5. Verifica sul web
 
-Vai a: **http://131.154.26.79:9090**
+Vai a: **http://131.154.26.79:8080/cbioportal** oppure **http://acc-vmtb.cnaf.infn.it/cbioportal**
 
-Cerca: **"Melanoma COLO-829"** oppure **"COLO-829"**
+Dopo il login con Keycloak, cerca: **"Melanoma COLO-829"** oppure **"COLO-829"**
 
 ---
 
 ### Opzione 2: Metodo Manuale (Passo-Passo)
 
-Se vuoi maggiore controllo, ecco i comandi individuali:
+Se vuoi maggiore controllo, ecco i comandi individuali testati e funzionanti:
 
-#### 1. Copia nel container Docker
+#### 1. Connessione alla macchina
 
 ```bash
-# Sulla macchina cBioPortal
+# Dalla tua macchina locale
+ssh -i ~/.ssh/id_ed25519.pub \
+    -J gbucci@bastion-sgsi.cnaf.infn.it \
+    -l ubuntu 131.154.26.79
+```
+
+Ti verrà chiesto:
+1. First Factor: password INFN
+2. Second Factor: codice OTP
+
+#### 2. Estrazione dello studio
+
+```bash
+# Sulla macchina cBioPortal (ubuntu@mtb-app)
+cd ~
+tar -xzf melanoma_study.tar.gz
+
+# Verifica l'estrazione
+ls -lh melanoma_study/
+```
+
+#### 3. Pulizia e copia nel container Docker
+
+```bash
+# Pulisci la directory /data nel container (se necessario)
+sudo docker exec cbioportal-container bash -c "rm -rf /data/*"
+
+# Copia lo studio nel container
 sudo docker cp ~/melanoma_study cbioportal-container:/data/
 
 # Verifica che i file ci siano
 sudo docker exec cbioportal-container ls -lh /data/melanoma_study/
 ```
 
-#### 2. Validazione (opzionale ma consigliata)
+Output atteso: lista di tutti i file dello studio (meta_study.txt, data_mutations_extended.maf, etc.)
+
+#### 4. Import diretto in cBioPortal (SENZA validazione API)
+
+**IMPORTANTE**: Il server cBioPortal ha autenticazione Keycloak che impedisce l'accesso all'API `/api/info` durante l'import. Usa queste opzioni:
 
 ```bash
-sudo docker exec cbioportal-container bash -c "
-    cd /cbioportal/core/src/main/scripts/importer && \
-    python3 validateData.py -s /data/melanoma_study -html /data/validation_report.html
-"
-
-# Copia il report di validazione per controllarlo
-sudo docker cp cbioportal-container:/data/validation_report.html /tmp/
+sudo docker exec cbioportal-container metaImport.py -s /data/melanoma_study -n -o
 ```
 
-Se ci sono errori, il report HTML te li mostrerà. Gli errori comuni sono:
-- Colonne mancanti nel MAF
-- IDs non corrispondenti tra file clinici e MAF
-- Formato date errato
+**Opzioni utilizzate:**
+- `-s /data/melanoma_study`: percorso dello studio nel container
+- `-n` (`--no_portal_checks`): **salta i controlli che richiedono l'API web** (necessario!)
+- `-o` (`--override_warning`): ignora i warning e procede con l'import
 
-#### 3. Caricamento in cBioPortal
+Output atteso:
+```
+Starting validation...
+INFO: -: Validation complete
+#######################################################################
+Overriding Warnings. Importing study now
+#######################################################################
+
+Data loading step using /core/core-1.0.9.jar
+...
+--> Loaded 1 new cancer types.
+--> Study ID:  X
+--> Name:  Melanoma COLO-829 Test Case
+...
+--> records inserted into `mutation` table: 33
+...
+Done.
+```
+
+**Note:**
+- 33 mutazioni verranno caricate (2 filtrate automaticamente: 5'Flank e Intron)
+- Il processo richiede circa 20-30 secondi
+
+#### 5. Verifica dal Database MySQL
+
+**IMPORTANTE**: Le credenziali del database sono:
+- User: `cbio_user`
+- Password: `somepassword` (NON `P@ssword1`)
+- Container: `cbioportal-database-container` (NON `cbioportal-container`)
 
 ```bash
-sudo docker exec cbioportal-container bash -c "
-    cd /cbioportal/core/src/main/scripts/importer && \
-    ./metaImport.py -s /data/melanoma_study
-"
+# Verifica studio caricato
+sudo docker exec cbioportal-database-container mysql -u cbio_user -psomepassword cbioportal -e \
+"SELECT CANCER_STUDY_ID, CANCER_STUDY_IDENTIFIER, NAME, DESCRIPTION FROM cancer_study WHERE CANCER_STUDY_IDENTIFIER='melanoma_colo829_test';"
+
+# Conta mutazioni caricate
+sudo docker exec cbioportal-database-container mysql -u cbio_user -psomepassword cbioportal -e \
+"SELECT COUNT(*) as Mutazioni_Caricate FROM mutation WHERE GENETIC_PROFILE_ID IN (SELECT GENETIC_PROFILE_ID FROM genetic_profile WHERE CANCER_STUDY_ID = (SELECT CANCER_STUDY_ID FROM cancer_study WHERE CANCER_STUDY_IDENTIFIER='melanoma_colo829_test'));"
+
+# Verifica campioni
+sudo docker exec cbioportal-database-container mysql -u cbio_user -psomepassword cbioportal -e \
+"SELECT STABLE_ID FROM sample WHERE PATIENT_ID IN (SELECT INTERNAL_ID FROM patient WHERE CANCER_STUDY_ID = (SELECT CANCER_STUDY_ID FROM cancer_study WHERE CANCER_STUDY_IDENTIFIER='melanoma_colo829_test'));"
+
+# Lista tutti gli studi
+sudo docker exec cbioportal-database-container mysql -u cbio_user -psomepassword cbioportal -e \
+"SELECT CANCER_STUDY_ID, CANCER_STUDY_IDENTIFIER, NAME FROM cancer_study;"
 ```
 
-Vedrai output tipo:
-```
-Reading study file /data/melanoma_study/meta_study.txt
-Reading cancer type file...
-Processing clinical data...
-Processing mutation data...
-Import successful!
-```
+Output atteso:
+- Studio: melanoma_colo829_test
+- Mutazioni: 33
+- Campioni: COLO-829, COLO-829BL
 
-#### 4. Riavvio e verifica
+#### 6. Riavvio container (opzionale)
 
 ```bash
 sudo docker restart cbioportal-container
 ```
 
-Attendi 2-3 minuti e vai su http://131.154.26.79:9090
+Attendi 2-3 minuti e vai su **http://131.154.26.79:8080/cbioportal** o **http://acc-vmtb.cnaf.infn.it/cbioportal**
 
 ---
 
 ## Risoluzione Problemi
+
+### Errore: "Connection refused" o "401 Unauthorized" durante l'import
+
+**Causa:** metaImport.py sta cercando di connettersi all'API `/api/info` che richiede autenticazione Keycloak
+
+**Soluzione:** Usa sempre le opzioni `-n -o`:
+```bash
+sudo docker exec cbioportal-container metaImport.py -s /data/melanoma_study -n -o
+```
+
+### Errore: "Access denied for user 'cbio_user'"
+
+**Causa:** Password del database errata
+
+**Soluzione:** Usa la password corretta `somepassword`:
+```bash
+sudo docker exec cbioportal-database-container mysql -u cbio_user -psomepassword cbioportal -e "..."
+```
+
+### Errore: "Can't connect to MySQL server through socket"
+
+**Causa:** Comando MySQL eseguito nel container sbagliato
+
+**Soluzione:** Usa `cbioportal-database-container` (NON `cbioportal-container`):
+```bash
+sudo docker exec cbioportal-database-container mysql -u cbio_user -psomepassword ...
+```
 
 ### Lo studio non appare dopo il caricamento
 
@@ -170,26 +257,13 @@ Attendi 2-3 minuti e vai su http://131.154.26.79:9090
 # 1. Controlla i log del container
 sudo docker logs cbioportal-container | tail -100
 
-# 2. Controlla che il database MySQL sia OK
-sudo docker exec cbioportal-container bash -c "
-    mysql -u cbio_user -pP@ssword1 cbioportal -e 'SHOW TABLES;'
-"
+# 2. Verifica che lo studio sia nel database
+sudo docker exec cbioportal-database-container mysql -u cbio_user -psomepassword cbioportal -e \
+"SELECT * FROM cancer_study WHERE CANCER_STUDY_IDENTIFIER='melanoma_colo829_test';"
 
-# 3. Verifica che lo studio sia nel database
-sudo docker exec cbioportal-container bash -c "
-    mysql -u cbio_user -pP@ssword1 cbioportal -e \
-    'SELECT * FROM cancer_study WHERE CANCER_STUDY_IDENTIFIER=\"melanoma_colo829_test\";'
-"
+# 3. Controlla le tabelle del database
+sudo docker exec cbioportal-database-container mysql -u cbio_user -psomepassword cbioportal -e "SHOW TABLES;"
 ```
-
-### Errore di validazione
-
-Il report HTML in `/tmp/validation_report.html` ti dirà esattamente cosa c'è di sbagliato.
-
-Errori comuni:
-- **Colonne mancanti**: aggiungi le colonne richieste al MAF
-- **SAMPLE_ID non trovato**: assicurati che i sample IDs nel MAF corrispondano a quelli in `data_clinical_sample.txt`
-- **PATIENT_ID mismatch**: controlla che i patient IDs siano consistenti
 
 ### Ricaricamento dello studio
 
@@ -198,17 +272,14 @@ Se devi ricaricare dopo aver fatto modifiche:
 ```bash
 # 1. Cancella lo studio esistente
 sudo docker exec cbioportal-container bash -c "
-    cd /cbioportal/core/src/main/scripts/importer && \
+    cd /core/scripts/importer && \
     ./cbioportalImporter.py -c remove-study -id melanoma_colo829_test
 "
 
-# 2. Ricarica
-sudo docker exec cbioportal-container bash -c "
-    cd /cbioportal/core/src/main/scripts/importer && \
-    ./metaImport.py -s /data/melanoma_study
-"
+# 2. Ricarica con le opzioni corrette
+sudo docker exec cbioportal-container metaImport.py -s /data/melanoma_study -n -o
 
-# 3. Riavvia
+# 3. Riavvia (opzionale)
 sudo docker restart cbioportal-container
 ```
 
@@ -237,19 +308,42 @@ Una volta caricato, dovresti vedere:
 
 ## Note Tecniche
 
-### Database
-- cBioPortal usa MySQL 8.0
+### Ambiente INFN (ubuntu@mtb-app, 131.154.26.79)
+
+**Container Docker:**
+```
+cbioportal-container            (cbioportal/cbioportal:4.1.13)
+cbioportal-database-container   (mysql:5.7)
+cbioportal-session-container    (cbioportal/session-service:0.5.0)
+cbioportal-session-database-container (mongo:3.7.9)
+```
+
+**Versioni:**
+- cBioPortal: **4.1.13**
+- MySQL: **5.7** (NON 8.0!)
+- Session Service: 0.5.0
+
+**Database:**
 - Container: `cbioportal-database-container`
 - Database: `cbioportal`
 - User: `cbio_user`
+- Password: **`somepassword`** (NON `P@ssword1`!)
 
-### Porte
-- cBioPortal web: 9090
+**Porte e URL:**
+- cBioPortal web: **8080** (NON 9090!)
 - MySQL: 3306
+- URL interno: `http://131.154.26.79:8080/cbioportal`
+- URL esterno: `http://acc-vmtb.cnaf.infn.it/cbioportal`
 
-### Versione
-- cBioPortal: 6.2.0
-- Session Service: 0.6.1
+**Autenticazione:**
+- Sistema: Keycloak
+- Realm: vmtb
+- Keycloak URL: `https://acc-kc.cnaf.infn.it/auth/realms/vmtb`
+
+**Percorsi nel container:**
+- Script import: `/usr/local/bin/` o `/core/scripts/importer/`
+- Studi: `/data/`
+- Core JAR: `/core/core-1.0.9.jar`
 
 ### Limiti
 - Questo è un ambiente di test
@@ -268,23 +362,28 @@ sudo docker ps
 sudo docker logs -f cbioportal-container
 
 # Log MySQL
-sudo docker logs -f cbioportal-database-container
+sudo docker logs cbioportal-database-container
 
-# Accesso MySQL
+# Accesso MySQL interattivo
 sudo docker exec -it cbioportal-database-container \
-    mysql -u cbio_user -pP@ssword1 cbioportal
+    mysql -u cbio_user -psomepassword cbioportal
 
 # Lista studi nel database
-sudo docker exec cbioportal-container bash -c "
-    mysql -u cbio_user -pP@ssword1 cbioportal -e \
-    'SELECT CANCER_STUDY_IDENTIFIER, NAME FROM cancer_study;'
-"
+sudo docker exec cbioportal-database-container mysql -u cbio_user -psomepassword cbioportal -e \
+"SELECT CANCER_STUDY_IDENTIFIER, NAME FROM cancer_study;"
+
+# Conta mutazioni per studio
+sudo docker exec cbioportal-database-container mysql -u cbio_user -psomepassword cbioportal -e \
+"SELECT COUNT(*) FROM mutation WHERE GENETIC_PROFILE_ID IN (SELECT GENETIC_PROFILE_ID FROM genetic_profile WHERE CANCER_STUDY_ID = (SELECT CANCER_STUDY_ID FROM cancer_study WHERE CANCER_STUDY_IDENTIFIER='melanoma_colo829_test'));"
+
+# Verifica variabili d'ambiente del database
+sudo docker exec cbioportal-database-container env | grep -i MYSQL
 
 # Spazio disco container
 sudo docker exec cbioportal-container df -h
 
-# Restart tutti i container
-sudo docker restart cbioportal-container cbioportal-database-container
+# Restart container cBioPortal
+sudo docker restart cbioportal-container
 ```
 
 ---
