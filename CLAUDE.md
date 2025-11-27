@@ -372,15 +372,45 @@ ConnectionRefusedError: [Errno 111] Connection refused
 ./metaImport.py -s /data/study_name -u http://YOUR_IP:PORT -o
 ```
 
-### 6. Study Not Visible in Web UI
+### 6. Study Not Visible in Web UI After Successful Import
 
-**Cause:** Container needs restart to refresh cache.
+**Cause:** The `GROUPS` field in the `cancer_study` table is empty. Studies must have `GROUPS = 'PUBLIC'` to be visible in the web interface.
+
+**Diagnosis:**
+```bash
+# Check GROUPS field (note: GROUPS is a MySQL reserved keyword, use backticks)
+sudo docker exec cbioportal-database-container mysql -u cbio_user -pPASSWORD cbioportal -e "
+SELECT CANCER_STUDY_IDENTIFIER, NAME, \`GROUPS\`, PUBLIC, STATUS
+FROM cancer_study
+WHERE CANCER_STUDY_IDENTIFIER='melanoma_colo829_test';
+"
+```
+
+If `GROUPS` is empty, the study won't appear in the portal even though it's in the database.
 
 **Solution:**
 ```bash
+# Fix GROUPS field (IMPORTANT: use backticks around GROUPS - it's a reserved keyword!)
+sudo docker exec cbioportal-database-container mysql -u cbio_user -pPASSWORD cbioportal -e "
+UPDATE cancer_study
+SET \`GROUPS\` = 'PUBLIC'
+WHERE CANCER_STUDY_IDENTIFIER='melanoma_colo829_test';
+"
+
+# Restart container to refresh cache
 sudo docker restart cbioportal-container
 sleep 120  # Wait for startup
 ```
+
+**Automated Fix:**
+```bash
+# Use the provided fix script
+./fix_groups_field.sh
+```
+
+**Prevention:** After importing any study, always verify the GROUPS field is set to 'PUBLIC'.
+
+**Note:** This issue occurs when using `metaImport.py` with portal info dump (`-p` flag). The import succeeds but doesn't properly set the GROUPS field.
 
 ## Creating New Studies - Best Practices
 
