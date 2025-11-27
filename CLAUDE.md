@@ -376,25 +376,61 @@ ConnectionRefusedError: [Errno 111] Connection refused
 
 **Cause:** The `GROUPS` field in the `cancer_study` table is empty. Studies must have `GROUPS = 'PUBLIC'` to be visible in the web interface.
 
-**Diagnosis:**
+**Root Cause:** Missing `groups: PUBLIC` field in `meta_study.txt`.
+
+**Correct Solution (Recommended):**
+
+Add `groups: PUBLIC` to your `meta_study.txt` file:
+
+```
+type_of_cancer: [cancer_type_id]
+cancer_study_identifier: [study_id]
+name: [Study Display Name]
+description: [Study description]
+citation: [Reference or data source]
+pmid: [PubMed ID if applicable]
+reference_genome: hg38
+groups: PUBLIC
+```
+
+Then remove and reload the study:
+
+```bash
+# Remove old study
+sudo docker exec cbioportal-container bash -c "
+    cd /core/scripts/importer && \
+    python3 cbioportalImporter.py -c remove-study -id [study_id]
+"
+
+# Reload with correct configuration
+sudo docker compose exec cbioportal bin/bash
+cd core/scripts/
+./dumpPortalInfo.pl /portalinfodump/
+cd ../..
+metaImport.py -p /portalinfodump/ -s /data/[study_name]/ -o
+exit
+
+# Restart container
+sudo docker restart cbioportal-container
+```
+
+**Alternative (Database Fix):**
+
+If you can't reload the study, fix the database directly:
+
 ```bash
 # Check GROUPS field (note: GROUPS is a MySQL reserved keyword, use backticks)
 sudo docker exec cbioportal-database-container mysql -u cbio_user -pPASSWORD cbioportal -e "
 SELECT CANCER_STUDY_IDENTIFIER, NAME, \`GROUPS\`, PUBLIC, STATUS
 FROM cancer_study
-WHERE CANCER_STUDY_IDENTIFIER='melanoma_colo829_test';
+WHERE CANCER_STUDY_IDENTIFIER='[study_id]';
 "
-```
 
-If `GROUPS` is empty, the study won't appear in the portal even though it's in the database.
-
-**Solution:**
-```bash
 # Fix GROUPS field (IMPORTANT: use backticks around GROUPS - it's a reserved keyword!)
 sudo docker exec cbioportal-database-container mysql -u cbio_user -pPASSWORD cbioportal -e "
 UPDATE cancer_study
 SET \`GROUPS\` = 'PUBLIC'
-WHERE CANCER_STUDY_IDENTIFIER='melanoma_colo829_test';
+WHERE CANCER_STUDY_IDENTIFIER='[study_id]';
 "
 
 # Restart container to refresh cache
@@ -402,15 +438,7 @@ sudo docker restart cbioportal-container
 sleep 120  # Wait for startup
 ```
 
-**Automated Fix:**
-```bash
-# Use the provided fix script
-./fix_groups_field.sh
-```
-
-**Prevention:** After importing any study, always verify the GROUPS field is set to 'PUBLIC'.
-
-**Note:** This issue occurs when using `metaImport.py` with portal info dump (`-p` flag). The import succeeds but doesn't properly set the GROUPS field.
+**Prevention:** Always include `groups: PUBLIC` in `meta_study.txt` before importing.
 
 ## Creating New Studies - Best Practices
 
@@ -454,9 +482,12 @@ description: [Study description]
 citation: [Reference or data source]
 pmid: [PubMed ID if applicable]
 reference_genome: hg38
+groups: PUBLIC
 ```
 
-**CRITICAL:** Do NOT include `add_global_case_list: true` - it causes duplicate case list errors.
+**CRITICAL:**
+- Do NOT include `add_global_case_list: true` - it causes duplicate case list errors
+- **ALWAYS include `groups: PUBLIC`** - without this, the study won't be visible in the web interface
 
 ### Case List Templates
 

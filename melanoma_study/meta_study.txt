@@ -5,3 +5,4 @@ description: Test study with melanoma case COLO-829 with BRAF V600E mutation and
 citation: COLO-829 cell line from NYGC
 pmid: 32913971
 reference_genome: hg38
+groups: PUBLIC

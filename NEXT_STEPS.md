@@ -1,10 +1,35 @@
-# Next Steps: Fix melanoma_colo829_test Visibility Issue
+# Study Visibility Issue - RESOLVED ✓
 
 ## Problem Summary
 
-The `melanoma_colo829_test` study was successfully imported into the cBioPortal database but is **not visible** in the web interface at http://131.154.26.79:9090.
+The `melanoma_colo829_test` study was successfully imported into the cBioPortal database but was **not visible** in the web interface.
 
-**Root Cause:** The `GROUPS` field in the `cancer_study` table is empty. It should be set to `'PUBLIC'` for the study to appear in the portal.
+**Root Cause:** Missing `groups: PUBLIC` field in `meta_study.txt`. Without this field, the GROUPS column in the database remains empty and the study is not displayed in the portal.
+
+## Solution Applied
+
+The issue was resolved by adding `groups: PUBLIC` to `meta_study.txt`, then removing and reloading the study:
+
+```bash
+# Added to meta_study.txt:
+groups: PUBLIC
+
+# Remove old study
+sudo docker exec cbioportal-container bash -c "cd /core/scripts/importer && python3 cbioportalImporter.py -c remove-study -id melanoma_colo829_test"
+
+# Reload with correct configuration
+sudo docker compose exec cbioportal bin/bash
+cd core/scripts/
+./dumpPortalInfo.pl /portalinfodump/
+cd ../..
+metaImport.py -p /portalinfodump/ -s /data/melanoma_study/ -o
+exit
+
+# Restart container
+sudo docker restart cbioportal-container
+```
+
+**Result:** Study now visible at http://131.154.26.79:9090 ✓
 
 ## Solution Ready
 
